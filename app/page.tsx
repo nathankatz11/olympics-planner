@@ -59,6 +59,17 @@ const INITIAL_TICKETS: TicketPlan[] = [
     notes: "Already purchased by family",
   },
   {
+    id: "p3",
+    event: "Women's Soccer Quarterfinal",
+    date: "2028-07-21",
+    time: "",
+    venue: "",
+    quantity: 12,
+    priority: "must-have",
+    status: "purchased",
+    notes: "Already purchased by family",
+  },
+  {
     id: "1",
     event: "Women's Gymnastics",
     date: "2028-07-20",
