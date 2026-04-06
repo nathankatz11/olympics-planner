@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { OLYMPIC_EVENTS, OlympicEvent } from "@/lib/events";
 import {
@@ -600,6 +600,44 @@ export default function OlympicsScheduler() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerPriority, setPickerPriority] = useState<Priority>("must-have");
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load tickets from DB on mount
+  useEffect(() => {
+    fetch("/api/tickets")
+      .then((r) => r.json())
+      .then((rows: TicketPlan[]) => {
+        if (rows.length > 0) {
+          setTickets(rows);
+        }
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  // Save to DB whenever tickets change (debounced)
+  const saveToDb = useCallback((data: TicketPlan[]) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      setSaving(true);
+      fetch("/api/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).finally(() => setSaving(false));
+    }, 500);
+  }, []);
+
+  // Wrap setTickets to also persist
+  function setTicketsAndSave(next: TicketPlan[] | ((prev: TicketPlan[]) => TicketPlan[])) {
+    setTickets((prev) => {
+      const updated = typeof next === "function" ? next(prev) : next;
+      if (loaded) saveToDb(updated);
+      return updated;
+    });
+  }
 
   const purchased = tickets.filter((t) => t.status === "purchased");
   const wishlist = tickets.filter((t) => t.status === "wishlist");
@@ -626,17 +664,17 @@ export default function OlympicsScheduler() {
       status: "wishlist",
       notes: event.description,
     };
-    setTickets([...tickets, newTicket]);
+    setTicketsAndSave([...tickets, newTicket]);
     setPickerOpen(false);
     setEditingId(newTicket.id);
   }
 
   function updateTicket(updated: TicketPlan) {
-    setTickets(tickets.map((t) => (t.id === updated.id ? updated : t)));
+    setTicketsAndSave(tickets.map((t) => (t.id === updated.id ? updated : t)));
   }
 
   function removeTicket(id: string) {
-    setTickets(tickets.filter((t) => t.id !== id));
+    setTicketsAndSave(tickets.filter((t) => t.id !== id));
     if (editingId === id) setEditingId(null);
   }
 
@@ -662,6 +700,8 @@ export default function OlympicsScheduler() {
               </h1>
               <p className="text-sm text-gray-500">
                 Purchase day: April 7, 2026
+                {saving && <span className="ml-2 text-xs text-amber-500">Saving...</span>}
+                {loaded && !saving && <span className="ml-2 text-xs text-emerald-500">Saved</span>}
               </p>
             </div>
           </div>
