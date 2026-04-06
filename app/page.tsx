@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { OLYMPIC_EVENTS, OlympicEvent } from "@/lib/events";
 import {
   Ticket,
   ChevronDown,
@@ -15,6 +16,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   ShoppingBag,
+  Search,
+  X,
 } from "lucide-react";
 
 type Priority = "must-have" | "backup";
@@ -114,6 +117,160 @@ const INITIAL_TICKETS: TicketPlan[] = [
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9);
+}
+
+const ALL_SPORTS = Array.from(
+  new Set(OLYMPIC_EVENTS.map((e) => e.sport))
+).sort();
+
+function EventPickerModal({
+  isOpen,
+  onClose,
+  onSelect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (event: OlympicEvent) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [sportFilter, setSportFilter] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return OLYMPIC_EVENTS.filter((e) => {
+      if (sportFilter && e.sport !== sportFilter) return false;
+      if (!q) return true;
+      return (
+        e.sport.toLowerCase().includes(q) ||
+        e.description.toLowerCase().includes(q) ||
+        e.venue.toLowerCase().includes(q) ||
+        e.date.includes(q) ||
+        e.sessionCode.toLowerCase().includes(q)
+      );
+    });
+  }, [search, sportFilter]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <h2 className="text-lg font-bold text-brand-dark">
+            Select an Olympic Event
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-black/5 transition-colors text-gray-400 hover:text-brand-dark"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="p-4 border-b border-gray-100 space-y-3">
+          <div className="relative">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by sport, event, venue, date..."
+              className="w-full rounded-lg border border-gray-200 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow"
+              autoFocus
+            />
+          </div>
+          <select
+            value={sportFilter}
+            onChange={(e) => setSportFilter(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow"
+          >
+            <option value="">All Sports ({OLYMPIC_EVENTS.length} events)</option>
+            {ALL_SPORTS.map((sport) => (
+              <option key={sport} value={sport}>
+                {sport} (
+                {OLYMPIC_EVENTS.filter((e) => e.sport === sport).length})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Event list */}
+        <div className="flex-1 overflow-y-auto p-2">
+          {filtered.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 text-sm">
+              No events match your search.
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {filtered.slice(0, 100).map((event) => {
+                const dateLabel = new Date(
+                  event.date + "T00:00:00"
+                ).toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                });
+                return (
+                  <div
+                    key={event.sessionCode}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-brand-cream/60 transition-colors group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs font-bold text-brand-red uppercase tracking-wide">
+                          {event.sport}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
+                          {event.sessionType}
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {event.sessionCode}
+                        </span>
+                      </div>
+                      <p className="text-sm text-brand-dark font-medium truncate">
+                        {event.description}
+                      </p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-400">
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar size={11} />
+                          {dateLabel}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock size={11} />
+                          {event.startTime} - {event.endTime}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin size={11} />
+                          {event.venue}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onSelect(event)}
+                      className="shrink-0 px-3 py-1.5 rounded-lg bg-brand-red text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
+                    >
+                      Add
+                    </button>
+                  </div>
+                );
+              })}
+              {filtered.length > 100 && (
+                <div className="text-center py-4 text-xs text-gray-400">
+                  Showing 100 of {filtered.length} results. Narrow your search
+                  to see more.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function TicketCard({
@@ -430,6 +587,8 @@ function HorizontalSchedule({ tickets }: { tickets: TicketPlan[] }) {
 export default function OlympicsScheduler() {
   const [tickets, setTickets] = useState<TicketPlan[]>(INITIAL_TICKETS);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerPriority, setPickerPriority] = useState<Priority>("must-have");
 
   const purchased = tickets.filter((t) => t.status === "purchased");
   const wishlist = tickets.filter((t) => t.status === "wishlist");
@@ -438,21 +597,26 @@ export default function OlympicsScheduler() {
   const totalMustHave = mustHaves.reduce((sum, t) => sum + t.quantity, 0);
   const totalBackup = backups.reduce((sum, t) => sum + t.quantity, 0);
   const totalPurchased = purchased.reduce((sum, t) => sum + t.quantity, 0);
-  const totalAll = totalMustHave + totalBackup + totalPurchased;
 
-  function addTicket(priority: Priority) {
+  function openPicker(priority: Priority) {
+    setPickerPriority(priority);
+    setPickerOpen(true);
+  }
+
+  function handlePickEvent(event: OlympicEvent) {
     const newTicket: TicketPlan = {
       id: generateId(),
-      event: "",
-      date: "2028-07-21",
-      time: "12:00",
-      venue: "",
+      event: event.sport + " - " + event.sessionType,
+      date: event.date,
+      time: event.startTime,
+      venue: event.venue,
       quantity: 2,
-      priority,
+      priority: pickerPriority,
       status: "wishlist",
-      notes: "",
+      notes: event.description,
     };
     setTickets([...tickets, newTicket]);
+    setPickerOpen(false);
     setEditingId(newTicket.id);
   }
 
@@ -467,6 +631,13 @@ export default function OlympicsScheduler() {
 
   return (
     <div className="min-h-screen bg-brand-cream">
+      {/* Event Picker Modal */}
+      <EventPickerModal
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={handlePickEvent}
+      />
+
       {/* Header */}
       <header className="bg-white border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4 py-6">
@@ -611,7 +782,7 @@ export default function OlympicsScheduler() {
             ))}
           </div>
           <button
-            onClick={() => addTicket("must-have")}
+            onClick={() => openPicker("must-have")}
             className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 py-3 text-sm font-semibold text-gray-400 hover:border-brand-red hover:text-brand-red transition-colors"
           >
             <Plus size={16} />
@@ -642,7 +813,7 @@ export default function OlympicsScheduler() {
             ))}
           </div>
           <button
-            onClick={() => addTicket("backup")}
+            onClick={() => openPicker("backup")}
             className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 py-3 text-sm font-semibold text-gray-400 hover:border-amber-400 hover:text-amber-600 transition-colors"
           >
             <Plus size={16} />
